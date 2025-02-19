@@ -612,6 +612,8 @@ class GRPOTrainer(Trainer):
         else:
             # Regular generation path
             with unwrap_model_for_generation(self.model, self.accelerator) as unwrapped_model:
+                unwrapped_model.config.use_cache=True
+                unwrapped_model.gradient_checkpointing_disable()
                 prompt_completion_ids = unwrapped_model.generate(
                     prompt_ids, attention_mask=prompt_mask, generation_config=self.generation_config
                 )
@@ -753,6 +755,12 @@ class GRPOTrainer(Trainer):
         attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)
         logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
 
+        if hasattr(model, "module"):
+            model.module.config.use_cache = False
+            model.module.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+        else:
+            model.config.use_cache = False
+            model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
         per_token_logps = self._get_per_token_logps(model, input_ids, attention_mask, logits_to_keep)
 
         # Compute the KL divergence between the model and the reference model
